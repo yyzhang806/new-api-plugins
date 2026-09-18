@@ -36,7 +36,6 @@ CI runs `pluginindex check` on every PR and fails if `index.json` is stale, any 
 ## Documentation
 
 - [Task plugin API v1](docs/plugin-api/README.md) — synchronized from `new-api/docs/plugin-api/`, including the [API reference](docs/plugin-api/v1.md), [TypeScript declarations](docs/plugin-api/v1.d.ts), and [JSON Schema](docs/plugin-api/v1.schema.json).
-- [Incho integration](docs/incho.md) — platform-aligned routes, generation modes, uploads, cancellation, and pricing configuration.
 - [Marketplace index format](docs/marketplace.md) — repository layout, version catalog, and installation integrity checks.
 
 ## Contributing a plugin
