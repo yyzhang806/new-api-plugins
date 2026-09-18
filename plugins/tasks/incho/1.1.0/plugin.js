@@ -3,7 +3,7 @@
  * Native base URL: <gateway>/incho; preserve the upstream /api/v1 suffixes.
  * The host reserves /api and native presenters return JSON only. Live audio is
  * exposed through the provider's pipe_url, not a fake JSON song/stream route.
- * Lyrics, uploads and cancellation use the host's immediate-completion contract.
+ * Lyrics and cancellation use the host's immediate-completion contract.
  * Asset IDs are gateway references so originTasks enforces ownership and pins
  * reference/extend/cancel operations to the channel that created the resource.
  */
@@ -22,7 +22,7 @@ export const meta = {
   author: { name: "yyzhang806" },
   website: "https://platform.yinchaoyongxian.com/?register_channel=new",
   baseUrl: "https://open.yinchaoyongxian.com",
-  models: ["incho_music", "incho_lyric", "incho_upload", "incho_cancel"],
+  models: ["incho_music", "incho_lyric", "incho_cancel"],
   fetchMode: "per_task",
   usageSchema: {
     clips: {
@@ -31,11 +31,10 @@ export const meta = {
       description: { en: "Song or lyrics generation unit price", zh: "生成歌曲或歌词单价" },
     },
     action: {
-      enum: ["music", "lyric", "upload", "cancel"],
+      enum: ["music", "lyric", "cancel"],
       enumLabels: {
         music: { en: "Generate songs", zh: "生成歌曲" },
         lyric: { en: "Generate lyrics", zh: "生成歌词" },
-        upload: { en: "Upload audio", zh: "上传音频" },
         cancel: { en: "Cancel task", zh: "取消任务" },
       },
       description: { en: "Generate music or manage tasks", zh: "生成音乐或管理任务" },
@@ -47,7 +46,6 @@ export const meta = {
     { method: "POST", path: "/incho/api/v1/song/instrumental", type: "submit", decode: "decodeInstrumental", render: "renderPlatformTask" },
     { method: "POST", path: "/incho/api/v1/song/extend", type: "submit", decode: "decodeExtend", render: "renderPlatformTask" },
     { method: "POST", path: "/incho/api/v1/lyric/generate", type: "submit", decode: "decodeLyric", render: "renderImmediate" },
-    { method: "POST", path: "/incho/api/v1/file/upload", type: "submit", decode: "decodeUpload", render: "renderUpload" },
     { method: "POST", path: "/incho/api/v1/task/cancel", type: "submit", decode: "decodeCancel", render: "renderImmediate" },
     { method: "GET", path: "/incho/api/v1/task/query", type: "dynamic", decode: "decodeQuery", render: "renderPlatformQuery" },
     { method: "GET", path: "/incho/api/v1/task/querys", type: "dynamic", decode: "decodeQueries", render: "renderPlatformQueries" },
@@ -62,7 +60,6 @@ const API_PREFIX = "/api/v1";
 const SOURCE_TAG = "plugins";
 const USER_AGENT = "incho-newapi-plugin/1.1.0";
 const DEFAULT_MODEL = "v4.0";
-const MAX_UPLOAD = 10 * 1024 * 1024;
 
 function trimmed(value) {
   return String(value || "").trim();
@@ -131,7 +128,7 @@ function textField(body, key, limit, required) {
 
 function publicTaskId(value) {
   if (typeof value !== "string" || !/^task_[A-Za-z0-9_-]+$/.test(value))
-    throw new Error("use the gateway task or upload id returned by this plugin");
+    throw new Error("use the gateway task id returned by this plugin");
   return value;
 }
 
@@ -144,9 +141,8 @@ function songReference(value) {
 
 function audioReference(audio, name) {
   if (!audio || typeof audio !== "object" || Array.isArray(audio)) throw new Error(name + " is required");
-  if (!["upload_id", "audio_id", "audio_url"].includes(audio.audio_type)) throw new Error(name + ".audio_type must be upload_id, audio_id or audio_url");
+  if (!["audio_id", "audio_url"].includes(audio.audio_type)) throw new Error(name + ".audio_type must be audio_id or audio_url; uploads are not supported");
   const content = textField(audio, "audio_content", 0, true);
-  if (audio.audio_type === "upload_id") return publicTaskId(content);
   if (audio.audio_type === "audio_id") return songReference(content).taskId;
   if (!/^https?:\/\/[^\s]+$/i.test(content)) throw new Error(name + ".audio_content must be an HTTP(S) URL");
   return "";
@@ -168,16 +164,11 @@ function decodeNativeSubmit(ctx) {
   return submitIntent(jsonBody(ctx), "MUSIC");
 }
 
-function resolveAudio(ctx, audio, name, uploadType) {
+function resolveAudio(ctx, audio, name) {
   const id = audioReference(audio, name);
   if (!id) return { audio_type: audio.audio_type, audio_content: audio.audio_content };
   const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === id; });
   if (!origin) throw new Error("audio origin task was not resolved by the gateway");
-  if (audio.audio_type === "upload_id") {
-    if (origin.action !== "UPLOAD" || origin.status !== "SUCCESS" || !origin.data || origin.data.upload_type !== uploadType)
-      throw new Error("upload_id must identify a successful " + uploadType + " upload");
-    return { audio_type: "upload_id", audio_content: origin.upstreamTaskId };
-  }
   if (!["MUSIC", "INSTRUMENTAL", "EXTEND"].includes(origin.action)) throw new Error("audio_id must identify a song task");
   const songId = songReference(audio.audio_content).songId;
   const song = songData(origin.data).find(function (item) { return item && item.id === songId; });
@@ -220,14 +211,14 @@ function validateAndNormalize(ctx) {
   }
   if (taskType === "normal" && !trimmed(body.prompt) && !trimmed(body.lyric)) throw new Error("prompt or lyric is required");
   if (taskType === "reference") {
-    body.reference_audio = resolveAudio(ctx, incoming.reference_audio, "reference_audio", "reference");
+    body.reference_audio = resolveAudio(ctx, incoming.reference_audio, "reference_audio");
     if (incoming.similarity != null) {
       if (![0.2, 0.8, 1.3, 1.5].includes(incoming.similarity)) throw new Error("similarity must be 0.2, 0.8, 1.3 or 1.5");
       body.similarity = incoming.similarity;
     }
   }
   if (taskType === "extend") {
-    body.origin_audio = resolveAudio(ctx, incoming.origin_audio, "origin_audio", "extend");
+    body.origin_audio = resolveAudio(ctx, incoming.origin_audio, "origin_audio");
     if (incoming.extend_at != null) {
       if (typeof incoming.extend_at !== "number" || !Number.isFinite(incoming.extend_at) || incoming.extend_at < 0)
         throw new Error("extend_at must be a non-negative number");
@@ -247,13 +238,6 @@ export function buildSubmitRequest(ctx) {
   if (action === "LYRIC") {
     request.url += "/lyric/generate";
     request.body = { prompt: textField(incoming, "prompt", 2000, true) };
-  } else if (action === "UPLOAD") {
-    const file = (ctx.files || []).find(function (item) { return item.ref === incoming.fileRef; });
-    validateUpload(file, incoming.upload_type);
-    request.url += "/file/upload";
-    delete request.headers["Content-Type"];
-    request.bodyType = "multipart";
-    request.parts = [{ name: "file", fileRef: file.ref, filename: file.filename }, { name: "upload_type", value: incoming.upload_type }];
   } else if (action === "CANCEL") {
     const id = publicTaskId(incoming.id);
     const origin = (ctx.originTasks || []).find(function (task) { return task.taskId === id; });
@@ -266,13 +250,6 @@ export function buildSubmitRequest(ctx) {
     request.body = normalized.body;
   }
   return request;
-}
-
-function validateUpload(file, uploadType) {
-  if (!["reference", "extend"].includes(uploadType)) throw new Error("upload_type must be reference or extend");
-  if (!file || file.field !== "file") throw new Error("one audio file in the file field is required");
-  if (!/\.(mp3|wav)$/i.test(file.filename)) throw new Error("file must be MP3 or WAV");
-  if (!(file.size > 0) || file.size > MAX_UPLOAD) throw new Error("file must be non-empty and at most 10 MB");
 }
 
 /** A successful submit returns { id, task_type, choices: [], create_at }. The task id field is `id`. */
@@ -304,7 +281,6 @@ export function parseSubmitResponse(ctx, resp) {
   }
   const taskId = trimmed(body.id);
   if (!taskId) throw new Error("upstream response did not include a task id");
-  if (action === "UPLOAD") return { taskId: taskId, taskData: { id: taskId, upload_type: ctx.requestBody.upload_type }, immediate: { status: "SUCCESS" } };
   // Preserve choices immediately, including song IDs and live pipe URLs.
   return { taskId: taskId, taskData: body };
 }
@@ -313,7 +289,7 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const action = actionName(ctx);
   if (action === "LYRIC") return { clips: 1, action: "lyric" };
-  if (action === "UPLOAD" || action === "CANCEL") return { clips: 0, action: action.toLowerCase() };
+  if (action === "CANCEL") return { clips: 0, action: action.toLowerCase() };
   return { clips: songCount(ctx.requestBody || {}), action: "music" };
 }
 
@@ -430,7 +406,7 @@ export function buildContentRequest(ctx) {
 export function extractUsageOnComplete(task, taskResult, body) {
   const action = actionName(task);
   if (action === "LYRIC") return { clips: 1, action: "lyric" };
-  if (action === "UPLOAD" || action === "CANCEL") return { clips: 0, action: action.toLowerCase() };
+  if (action === "CANCEL") return { clips: 0, action: action.toLowerCase() };
   const values = songData(body);
   if (values.length === 0) return null;
   const done = values.filter(function (item) {
@@ -579,14 +555,6 @@ export const native = {
   decodeInstrumental: function (ctx) { return submitIntent(jsonBody(ctx), "INSTRUMENTAL"); },
   decodeExtend: function (ctx) { return submitIntent(jsonBody(ctx), "EXTEND"); },
   decodeLyric: function (ctx) { return submitIntent(jsonBody(ctx), "LYRIC", "incho_lyric"); },
-  decodeUpload: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "multipart") throw new Error("multipart/form-data body required");
-    const files = ctx.body.files || [];
-    const types = (ctx.body.fields || {}).upload_type || [];
-    if (files.length !== 1 || types.length !== 1) throw new Error("one file and one upload_type are required");
-    validateUpload(files[0], types[0]);
-    return { kind: "submit", model: "incho_upload", action: "UPLOAD", requestBody: { fileRef: files[0].ref, upload_type: types[0] } };
-  },
   decodeCancel: function (ctx) {
     const id = publicTaskId(jsonBody(ctx).id);
     return { kind: "submit", model: "incho_cancel", action: "CANCEL", requestBody: { id: id }, originTaskIds: [id] };
@@ -597,7 +565,6 @@ export const native = {
   renderPlatformQuery: function (ctx, tasks) { return platformTask(tasks[0]); },
   renderPlatformQueries: function (ctx, tasks) { return { tasks: tasks.map(platformTask) }; },
   renderImmediate: function (ctx, task) { return task.data; },
-  renderUpload: function (ctx, task) { return { id: task.task_id }; },
   renderSubmit: function (ctx, task) {
     return { code: "success", message: "", data: String(task.task_id || "") };
   },

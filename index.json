@@ -1112,13 +1112,6 @@
         },
         {
           "method": "POST",
-          "path": "/incho/api/v1/file/upload",
-          "type": "submit",
-          "decode": "decodeUpload",
-          "render": "renderUpload"
-        },
-        {
-          "method": "POST",
           "path": "/incho/api/v1/task/cancel",
           "type": "submit",
           "decode": "decodeCancel",
@@ -1172,7 +1165,6 @@
           "enum": [
             "music",
             "lyric",
-            "upload",
             "cancel"
           ],
           "description": {
@@ -1191,10 +1183,6 @@
             "music": {
               "en": "Generate songs",
               "zh": "生成歌曲"
-            },
-            "upload": {
-              "en": "Upload audio",
-              "zh": "上传音频"
             }
           }
         },
@@ -1212,7 +1200,6 @@
       "models": [
         "incho_music",
         "incho_lyric",
-        "incho_upload",
         "incho_cancel"
       ],
       "latest": "1.1.0",
@@ -1220,7 +1207,7 @@
         {
           "version": "1.1.0",
           "path": "plugins/tasks/incho/1.1.0/plugin.js",
-          "sha256": "852791720c8079746c1fd3696f83b70cac86fbb479b081cbfc3bb3e7c0d50073",
+          "sha256": "d25137205724b1ff4611181df81e084896e5271a673631f3daf9024304d0a634",
           "minApiVersion": 1,
           "kind": "task",
           "baseUrl": "https://open.yinchaoyongxian.com"
