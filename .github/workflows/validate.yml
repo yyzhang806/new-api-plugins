@@ -36,6 +36,19 @@ jobs:
         with:
           go-version-file: new-api/go.mod
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test Incho request and response flows
+        working-directory: new-api-plugins
+        run: node --test tests/incho/plugin.test.mjs
+
+      - name: Test host-runtime fixtures and release notes
+        working-directory: new-api-plugins/tools/pluginindex
+        run: go test -v .
+
       - name: Compile all plugins and verify index.json
         working-directory: new-api-plugins/tools/pluginindex
         run: go run . check ../..
