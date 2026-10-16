@@ -2283,10 +2283,59 @@
       "website": "https://platform.yinchaoyongxian.com/?register_channel=new",
       "sortPriority": 100,
       "description": {
-        "en": "Incho music generation (prompt-to-song, multilingual vocals)",
-        "zh": "音潮 Incho 音乐生成（提示词生成歌曲、多语种人声）"
+        "en": "Incho v4.5 songs and instrumentals, reference audio and lyrics",
+        "zh": "音潮 v4.5 歌曲、纯音乐、仿写与歌词生成"
       },
       "routes": [
+        {
+          "method": "POST",
+          "path": "/incho/api/v1/song/generate",
+          "type": "submit",
+          "decode": "decodeGenerate",
+          "render": "renderPlatformTask"
+        },
+        {
+          "method": "POST",
+          "path": "/incho/api/v1/song/instrumental",
+          "type": "submit",
+          "decode": "decodeInstrumental",
+          "render": "renderPlatformTask"
+        },
+        {
+          "method": "POST",
+          "path": "/incho/api/v1/song/extend",
+          "type": "submit",
+          "decode": "decodeExtend",
+          "render": "renderPlatformTask"
+        },
+        {
+          "method": "POST",
+          "path": "/incho/api/v1/lyric/generate",
+          "type": "submit",
+          "decode": "decodeLyric",
+          "render": "renderImmediate"
+        },
+        {
+          "method": "POST",
+          "path": "/incho/api/v1/task/cancel",
+          "type": "submit",
+          "decode": "decodeCancel",
+          "render": "renderImmediate"
+        },
+        {
+          "method": "GET",
+          "path": "/incho/api/v1/task/query",
+          "type": "dynamic",
+          "decode": "decodeQuery",
+          "render": "renderPlatformQuery"
+        },
+        {
+          "method": "GET",
+          "path": "/incho/api/v1/task/querys",
+          "type": "dynamic",
+          "decode": "decodeQueries",
+          "render": "renderPlatformQueries"
+        },
         {
           "method": "POST",
           "path": "/incho/submit/:action",
@@ -2305,6 +2354,10 @@
       "protocols": [
         {
           "name": "openai_responses",
+          "models": [
+            "incho_music",
+            "incho_lyric"
+          ],
           "supports": [
             "stream",
             "sync",
@@ -2315,13 +2368,23 @@
       "usageSchema": {
         "action": {
           "enum": [
-            "music"
+            "music",
+            "lyric",
+            "cancel"
           ],
           "description": {
-            "en": "Generate songs",
-            "zh": "生成歌曲"
+            "en": "Generate music or manage tasks",
+            "zh": "生成音乐或管理任务"
           },
           "enumLabels": {
+            "cancel": {
+              "en": "Cancel task",
+              "zh": "取消任务"
+            },
+            "lyric": {
+              "en": "Generate lyrics",
+              "zh": "生成歌词"
+            },
             "music": {
               "en": "Generate songs",
               "zh": "生成歌曲"
@@ -2332,18 +2395,28 @@
           "type": "number",
           "unit": "count",
           "description": {
-            "en": "Song generation unit price",
-            "zh": "生成歌曲单价"
+            "en": "Song or lyrics generation unit price",
+            "zh": "生成歌曲或歌词单价"
           }
         }
       },
       "usageExamples": null,
       "usageProfiles": null,
       "models": [
-        "incho_music"
+        "incho_music",
+        "incho_lyric",
+        "incho_cancel"
       ],
-      "latest": "1.0.2",
+      "latest": "1.2.0",
       "versions": [
+        {
+          "version": "1.2.0",
+          "path": "plugins/tasks/incho/1.2.0/plugin.js",
+          "sha256": "65c88f11ddd1c21a95860dd478e59a8b9a6934a6e93161ba6ed27b01107269ac",
+          "minApiVersion": 1,
+          "kind": "task",
+          "baseUrl": "https://open.yinchaoyongxian.com"
+        },
         {
           "version": "1.0.2",
           "path": "plugins/tasks/incho/1.0.2/plugin.js",
